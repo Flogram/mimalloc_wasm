@@ -1,5 +1,6 @@
 CC := emcc
-CFLAGS := -Wall -Wextra -Iinclude -O3 -Wno-deprecated-declarations -Wno-deprecated-pragma
+CFLAGS := -Wall -Wextra -Iinclude -O3 --no-entry -Wno-deprecated-declarations -Wno-deprecated-pragma -Wunused-command-line-argument -s EXPORTED_FUNCTIONS='["_mi_malloc","_malloc","free"]' -s EXTRA_EXPORTED_RUNTIME_METHODS='["ccall","cwrap"]'
+OUT_DIR := build
 
 SRCS := src/alloc.c \
 	src/alloc-aligned.c \
@@ -17,7 +18,7 @@ SRCS := src/alloc.c \
 	src/stats.c \
 	src/prim/wasi/prim.c
 
-OBJS := $(patsubst src/%.c, src/%.o, $(SRCS))
+OBJS := $(patsubst src/%.c, $(OUT_DIR)/src/%.o, $(SRCS))
 TARGET := mimalloc_wasm
 
 all: $(TARGET)
@@ -25,8 +26,11 @@ all: $(TARGET)
 $(TARGET): $(OBJS)
 	$(CC) $(OBJS) -o $@
 
-src/%.o: src/%.c
+$(OUT_DIR)/src/%.o: src/%.c
+	mkdir -p $(dir $@) # Create the directory if it does not exist
 	$(CC) $(CFLAGS) -c $< -o $@
 
 clean:
-	rm -f $(OBJS) $(TARGET)
+	rm -rf $(OUT_DIR)
+	rm mimalloc_wasm
+	rm mimalloc_wasm.wasm

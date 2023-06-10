@@ -15,6 +15,7 @@ terms of the MIT license. A copy of the license can be found in the file
 
 #include <string.h>      // memset, strlen (for mi_strdup)
 #include <stdlib.h>      // malloc, abort
+#include <emscripten.h>
 
 #define MI_IN_ALLOC_C
 #include "alloc-override.c"
@@ -172,6 +173,7 @@ mi_decl_nodiscard extern inline mi_decl_restrict void* mi_heap_malloc(mi_heap_t*
   return _mi_heap_malloc_zero(heap, size, false);
 }
 
+EMSCRIPTEN_KEEPALIVE
 mi_decl_nodiscard extern inline mi_decl_restrict void* mi_malloc(size_t size) mi_attr_noexcept {
   return mi_heap_malloc(mi_prim_get_default_heap(), size);
 }
@@ -558,6 +560,7 @@ static inline mi_segment_t* mi_checked_ptr_segment(const void* p, const char* ms
 
 // Free a block
 // fast path written carefully to prevent spilling on the stack
+EMSCRIPTEN_KEEPALIVE
 void mi_free(void* p) mi_attr_noexcept
 {
   if mi_unlikely(p == NULL) return;
