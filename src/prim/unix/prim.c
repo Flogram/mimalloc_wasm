@@ -644,7 +644,7 @@ void _mi_prim_process_info(mi_process_info_t* pinfo)
 
 #else
 
-#ifndef __wasi__
+#ifndef __wasm__
 // WebAssembly instances are not processes
 #pragma message("define a way to get process info")
 #endif

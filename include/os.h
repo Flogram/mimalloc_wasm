@@ -1,0 +1,1 @@
+void* mi_align_up_ptr(void* p, size_t alignment);

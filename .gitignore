@@ -7,3 +7,4 @@ ide/vs20??/VTune*
 out/
 docs/
 *.zip
+*.o

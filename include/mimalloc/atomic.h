@@ -369,7 +369,7 @@ static inline void mi_atomic_yield(void) {
 static inline void mi_atomic_yield(void) {
   smt_pause();
 }
-#elif defined(__wasi__)
+#elif defined(__wasm__)
 #include <sched.h>
 static inline void mi_atomic_yield(void) {
   sched_yield();

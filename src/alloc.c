@@ -823,7 +823,7 @@ mi_decl_nodiscard mi_decl_restrict char* mi_strndup(const char* s, size_t n) mi_
   return mi_heap_strndup(mi_prim_get_default_heap(),s,n);
 }
 
-#ifndef __wasi__
+#ifndef __wasm__
 // `realpath` using mi_malloc
 #ifdef _WIN32
 #ifndef PATH_MAX
