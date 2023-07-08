@@ -14,6 +14,7 @@ terms of the MIT license. A copy of the license can be found in the file
 #include "mimalloc.h"
 #include "mimalloc/internal.h"
 #include "mimalloc/atomic.h"
+#include <emscripten.h>
 
 /* -----------------------------------------------------------
   Definition of page queues for each block size
@@ -868,15 +869,29 @@ static mi_page_t* mi_large_huge_page_alloc(mi_heap_t* heap, size_t size, size_t 
 // Allocate a page
 // Note: in debug mode the size includes MI_PADDING_SIZE and might have overflowed.
 static mi_page_t* mi_find_page(mi_heap_t* heap, size_t size, size_t huge_alignment) mi_attr_noexcept {
+  EM_ASM({
+    console.log("mi_find_page heap ", $0);
+    console.log("mi_find_page size ", $1);
+    console.log("mi_find_page huge_alignment ", $2);
+  }, (uintptr_t)heap, size, huge_alignment);
+
   // huge allocation?
   const size_t req_size = size - MI_PADDING_SIZE;  // correct for padding_size in case of an overflow on `size`  
+  EM_ASM({
+    console.log("mi_find_page req_size ", $0);
+  }, req_size);
+
   if mi_unlikely(req_size > (MI_MEDIUM_OBJ_SIZE_MAX - MI_PADDING_SIZE) || huge_alignment > 0) {
     if mi_unlikely(req_size > PTRDIFF_MAX) {  // we don't allocate more than PTRDIFF_MAX (see <https://sourceware.org/ml/libc-announce/2019/msg00001.html>)
       _mi_error_message(EOVERFLOW, "allocation request is too large (%zu bytes)\n", req_size);
       return NULL;
     }
     else {
-      return mi_large_huge_page_alloc(heap,size,huge_alignment);
+      mi_page_t* huge_page = mi_large_huge_page_alloc(heap,size,huge_alignment);
+      EM_ASM({
+        console.log("mi_find_page mi_large_huge_page_alloc returned ", $0);
+      }, (uintptr_t)huge_page);
+      return huge_page;
     }
   }
   else {
@@ -884,7 +899,12 @@ static mi_page_t* mi_find_page(mi_heap_t* heap, size_t size, size_t huge_alignme
     #if MI_PADDING
     mi_assert_internal(size >= MI_PADDING_SIZE); 
     #endif
-    return mi_find_free_page(heap, size);
+
+    mi_page_t* free_page = mi_find_free_page(heap, size);
+    EM_ASM({
+      console.log("mi_find_page mi_find_free_page returned ", $0);
+    }, (uintptr_t)free_page);
+    return free_page;
   }
 }
 
@@ -894,11 +914,28 @@ static mi_page_t* mi_find_page(mi_heap_t* heap, size_t size, size_t huge_alignme
 // very large requested alignments in which case we use a huge segment.
 void* _mi_malloc_generic(mi_heap_t* heap, size_t size, bool zero, size_t huge_alignment) mi_attr_noexcept
 {
+  EM_ASM({
+    console.log("_mi_malloc_generic called with size: ", $0, ", zero: ", $1, ", huge_alignment: ", $2);
+  }, size, zero, huge_alignment);
+
   mi_assert_internal(heap != NULL);
+
+  EM_ASM({ 
+    console.log("_mi_malloc_generic is heap initialized: ", $0);
+  }, mi_heap_is_initialized(heap));
 
   // initialize if necessary
   if mi_unlikely(!mi_heap_is_initialized(heap)) {
+    EM_ASM({
+      console.log("_mi_malloc_generic Heap before initialization: ", $0);
+    }, (uintptr_t)heap);
+
     heap = mi_heap_get_default(); // calls mi_thread_init 
+
+    EM_ASM({ 
+      console.log("_mi_malloc_generic heap after mi_heap_get_default()", $0);
+    }, (uintptr_t)heap);
+
     if mi_unlikely(!mi_heap_is_initialized(heap)) { return NULL; }
   }
   mi_assert_internal(mi_heap_is_initialized(heap));
@@ -911,9 +948,18 @@ void* _mi_malloc_generic(mi_heap_t* heap, size_t size, bool zero, size_t huge_al
 
   // find (or allocate) a page of the right size
   mi_page_t* page = mi_find_page(heap, size, huge_alignment);
+
+  EM_ASM({ 
+    console.log("_mi_malloc_generic mi_find_page(heap, size, huge_alignment) returned ", $0);
+  }, (uintptr_t)page);
+
   if mi_unlikely(page == NULL) { // first time out of memory, try to collect and retry the allocation once more
     mi_heap_collect(heap, true /* force */);
     page = mi_find_page(heap, size, huge_alignment);
+
+    EM_ASM({ 
+      console.log("_mi_malloc_generic mi_find_page(heap, size, huge_alignment) after mi_heap_collect returned ", $0);
+    }, (uintptr_t)page);
   }
 
   if mi_unlikely(page == NULL) { // out of memory
@@ -930,10 +976,21 @@ void* _mi_malloc_generic(mi_heap_t* heap, size_t size, bool zero, size_t huge_al
     // note: we cannot call _mi_page_malloc with zeroing for huge blocks; we zero it afterwards in that case.
     void* p = _mi_page_malloc(heap, page, size, false);
     mi_assert_internal(p != NULL);
+
+    EM_ASM({
+      console.log("_mi_malloc_generic _mi_page_malloc returned block: ", $0);
+    }, (uintptr_t)p);
+
     _mi_memzero_aligned(p, mi_page_usable_block_size(page));
     return p;
   }
   else {
-    return _mi_page_malloc(heap, page, size, zero);
+    void* p = _mi_page_malloc(heap, page, size, zero);
+
+    EM_ASM({
+      console.log("_mi_malloc_generic _mi_page_malloc returned block: ", $0);
+    }, (uintptr_t)p);
+
+    return p;
   }
 }

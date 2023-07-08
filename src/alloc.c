@@ -28,8 +28,17 @@ terms of the MIT license. A copy of the license can be found in the file
 // Fast allocation in a page: just pop from the free list.
 // Fall back to generic allocation only if the list is empty.
 extern inline void* _mi_page_malloc(mi_heap_t* heap, mi_page_t* page, size_t size, bool zero) mi_attr_noexcept {
+  EM_ASM({
+    console.log("_mi_page_malloc called. size:", $0);
+  }, size);
+
   mi_assert_internal(page->xblock_size==0||mi_page_block_size(page) >= size);
   mi_block_t* const block = page->free;
+
+  EM_ASM({
+    console.log("_mi_page_malloc block value before allocation:", $0);
+  }, (int)block);
+
   if mi_unlikely(block == NULL) {
     return _mi_malloc_generic(heap, size, zero, 0);
   }
@@ -43,6 +52,10 @@ extern inline void* _mi_page_malloc(mi_heap_t* heap, mi_page_t* page, size_t siz
     mi_assert_expensive(mi_mem_is_zero(block+1,size - sizeof(*block)));
   }
   #endif
+
+  EM_ASM({
+    console.log("_mi_page_malloc page->free value after allocation:", $0);
+  }, (int)page->free);
 
   // allow use of the block internally
   // note: when tracking we need to avoid ever touching the MI_PADDING since
@@ -104,6 +117,9 @@ extern inline void* _mi_page_malloc(mi_heap_t* heap, mi_page_t* page, size_t siz
 }
 
 static inline mi_decl_restrict void* mi_heap_malloc_small_zero(mi_heap_t* heap, size_t size, bool zero) mi_attr_noexcept {
+  EM_ASM_({ console.log("heap is:", $0); }, heap);
+  EM_ASM_({ console.log("size + MI_PADDING_SIZE is:", $0); }, size + MI_PADDING_SIZE);
+
   mi_assert(heap != NULL);
   #if MI_DEBUG
   const uintptr_t tid = _mi_thread_id();
@@ -114,7 +130,9 @@ static inline mi_decl_restrict void* mi_heap_malloc_small_zero(mi_heap_t* heap, 
   if (size == 0) { size = sizeof(void*); }
   #endif
   mi_page_t* page = _mi_heap_get_free_small_page(heap, size + MI_PADDING_SIZE);
+  EM_ASM_({ console.log("_mi_heap_get_free_small_page returned:", $0); }, page);
   void* const p = _mi_page_malloc(heap, page, size + MI_PADDING_SIZE, zero);  
+  EM_ASM_({ console.log("_mi_page_malloc returned:", $0); }, p);
   mi_track_malloc(p,size,zero);
   #if MI_STAT>1
   if (p != NULL) {
@@ -141,6 +159,14 @@ mi_decl_nodiscard extern inline mi_decl_restrict void* mi_malloc_small(size_t si
 
 // The main allocation function
 extern inline void* _mi_heap_malloc_zero_ex(mi_heap_t* heap, size_t size, bool zero, size_t huge_alignment) mi_attr_noexcept {
+  EM_ASM_({
+        console.log("_mi_heap_malloc_zero_ex size:", $0);
+  }, size);
+
+  EM_ASM_({
+        console.log("_mi_heap_malloc_zero_ex MI_SMALL_SIZE_MAX:", $0);
+  }, MI_SMALL_SIZE_MAX);
+
   if mi_likely(size <= MI_SMALL_SIZE_MAX) {
     mi_assert_internal(huge_alignment == 0);
     return mi_heap_malloc_small_zero(heap, size, zero);

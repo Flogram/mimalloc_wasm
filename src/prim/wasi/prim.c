@@ -43,6 +43,9 @@ int _mi_prim_free(void* addr, size_t size ) {
 
 #if defined(MI_USE_SBRK)
   static void* mi_memory_grow( size_t size ) {
+    EM_ASM({
+      console.log("_mi_prim_mem_grow called SBRK version");
+    });
     void* p = sbrk(size);
     if (p == (void*)(-1)) return NULL;
     #if !defined(__wasm__) // on wasi this is always zero initialized already (?)
@@ -52,6 +55,13 @@ int _mi_prim_free(void* addr, size_t size ) {
   }
 #elif defined(__wasm__)
   static void* mi_memory_grow( size_t size ) {
+    EM_ASM({
+      console.log("_mi_prim_mem_grow called wasm version");
+      console.log("  size: ", $0);
+      console.log("  _mi_os_page_size():",$1);
+      console.log("  _mi_divide_up(size, _mi_os_page_size()):",$2);
+      console.log("  __builtin_wasm_memory_size(0):", $3);
+    }, size, _mi_os_page_size(), _mi_divide_up(size, _mi_os_page_size()), __builtin_wasm_memory_size(0));
     size_t base = (size > 0 ? __builtin_wasm_memory_grow(0,_mi_divide_up(size, _mi_os_page_size()))
                             : __builtin_wasm_memory_size(0));
     if (base == SIZE_MAX) return NULL;
@@ -65,12 +75,29 @@ static pthread_mutex_t mi_heap_grow_mutex = PTHREAD_MUTEX_INITIALIZER;
 
 static void* mi_prim_mem_grow(size_t size, size_t try_alignment) {
   void* p = NULL;
+
+  EM_ASM({
+    console.log("_mi_prim_mem_grow");
+    console.log("  size: ", $0);
+    console.log("  try_alignment: ", $1);
+  }, size, try_alignment);
+
   if (try_alignment <= 1) {
     // `sbrk` is not thread safe in general so try to protect it (we could skip this on WASM but leave it in for now)
     #if defined(MI_USE_PTHREADS)
     pthread_mutex_lock(&mi_heap_grow_mutex);
+    EM_ASM({
+      console.log("using PTHREADS");
+    });
     #endif
+
     p = mi_memory_grow(size);
+
+    EM_ASM({
+      console.log("after _mi_prim_mem_grow");
+      console.log("  p: ", $0);
+    }, p);
+
     #if defined(MI_USE_PTHREADS)
     pthread_mutex_unlock(&mi_heap_grow_mutex);
     #endif
@@ -86,6 +113,10 @@ static void* mi_prim_mem_grow(size_t size, size_t try_alignment) {
     #endif
     {
       void* current = mi_memory_grow(0);  // get current size
+      EM_ASM({
+        console.log("mi_prim_mem_grow called mi_memory_grow");
+        console.log("  current: ", $0);
+      }, current);
       if (current != NULL) {
         void* aligned_current = mi_align_up_ptr(current, try_alignment);  // and align from there to minimize wasted space
         alloc_size = _mi_align_up( ((uint8_t*)aligned_current - (uint8_t*)current) + size, _mi_os_page_size());
@@ -95,6 +126,11 @@ static void* mi_prim_mem_grow(size_t size, size_t try_alignment) {
     #if defined(MI_USE_PTHREADS)
     pthread_mutex_unlock(&mi_heap_grow_mutex);
     #endif
+    EM_ASM({
+      console.log("mi_prim_mem_grow called mi_memory_grow");
+      console.log("  base: ", $0);
+    }, base);
+
     if (base != NULL) {
       p = mi_align_up_ptr(base, try_alignment);
       if ((uint8_t*)p + size > (uint8_t*)base + alloc_size) {
@@ -113,15 +149,33 @@ static void* mi_prim_mem_grow(size_t size, size_t try_alignment) {
   }
   */
   mi_assert_internal( p == NULL || try_alignment == 0 || (uintptr_t)p % try_alignment == 0 );
+  EM_ASM({
+    console.log("mi_prim_mem_grow returning");
+    console.log("  p: ", $0);
+  }, p);
   return p;
 }
 
 // Note: the `try_alignment` is just a hint and the returned pointer is not guaranteed to be aligned.
 int _mi_prim_alloc(size_t size, size_t try_alignment, bool commit, bool allow_large, bool* is_large, bool* is_zero, void** addr) {
   MI_UNUSED(allow_large); MI_UNUSED(commit);
+
+  EM_ASM({
+    console.log("_mi_prim_alloc called.");
+    console.log("  size: ", $0);
+    console.log("  try_alignment: ", $1);
+    console.log("_mi_prim_mem_grow called by _mi_prim_alloc.");
+  }, size, try_alignment);
+
   *is_large = false;
   *is_zero = false;
   *addr = mi_prim_mem_grow(size, try_alignment);
+
+  EM_ASM({
+    console.log("after _mi_prim_mem_grow");
+    console.log("  *addr: ", $0);
+  }, *addr);
+
   return (*addr != NULL ? 0 : ENOMEM);
 }
 
@@ -132,12 +186,26 @@ int _mi_prim_alloc(size_t size, size_t try_alignment, bool commit, bool allow_la
 
 int _mi_prim_commit(void* addr, size_t size, bool* is_zero) {
   MI_UNUSED(addr); MI_UNUSED(size); 
+
+  EM_ASM({
+    console.log("_mi_prim_commit called.");
+    console.log("  addr: ", $0);
+    console.log("  size: ", $1);
+  }, addr, size);
+
   *is_zero = false;
   return 0;
 }
 
 int _mi_prim_decommit(void* addr, size_t size, bool* needs_recommit) {
   MI_UNUSED(addr); MI_UNUSED(size);
+
+  EM_ASM({
+    console.log("_mi_prim_decommit called.");
+    console.log("  addr: ", $0);
+    console.log("  size: ", $1);
+  }, addr, size);
+
   *needs_recommit = false;
   return 0;
 }

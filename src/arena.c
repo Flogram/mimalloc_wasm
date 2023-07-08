@@ -26,6 +26,7 @@ The arena allocation needs to be thread safe and we use an atomic bitmap to allo
 #include <errno.h>   // ENOMEM
 
 #include "bitmap.h"  // atomic bitmap
+#include <emscripten.h>
 
 /* -----------------------------------------------------------
   Arena allocation
@@ -400,6 +401,11 @@ void* _mi_arena_alloc_aligned(size_t size, size_t alignment, size_t align_offset
     return _mi_os_alloc_aligned_at_offset(size, alignment, align_offset, commit, allow_large, memid, tld->stats);
   }
   else {
+    EM_ASM({
+      console.log("_mi_arena_alloc_aligned called _mi_os_alloc_aligned");
+      console.log("  size: ", $0);
+      console.log("  alignment: ", $1);
+    }, size, alignment);
     return _mi_os_alloc_aligned(size, alignment, commit, allow_large, memid, tld->stats);
   }  
 }
@@ -810,6 +816,11 @@ int mi_reserve_os_memory_ex(size_t size, bool commit, bool allow_large, bool exc
   if (arena_id != NULL) *arena_id = _mi_arena_id_none();
   size = _mi_align_up(size, MI_ARENA_BLOCK_SIZE); // at least one block
   mi_memid_t memid;
+  EM_ASM({
+      console.log("mi_reserve_os_memory_ex called _mi_os_alloc_aligned 1");
+      console.log("  size: ", $0);
+      console.log("  alignment(MI_SEGMENT_ALIGN): ", $1);
+    }, size, MI_SEGMENT_ALIGN);
   void* start = _mi_os_alloc_aligned(size, MI_SEGMENT_ALIGN, commit, allow_large, &memid, &_mi_stats_main);
   if (start == NULL) return ENOMEM;
   const bool is_large = memid.is_pinned; // todo: use separate is_large field?

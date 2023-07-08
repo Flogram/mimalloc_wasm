@@ -1,0 +1,15 @@
+{
+    "cmake.configureOnOpen": false,
+    "files.associations": {
+        "format": "c",
+        "initializer_list": "c",
+        "list": "c",
+        "random": "c",
+        "type_traits": "c",
+        "vector": "c",
+        "xhash": "c",
+        "xstring": "c",
+        "xtree": "c",
+        "xutility": "c"
+    }
+}

@@ -8,6 +8,8 @@ terms of the MIT license. A copy of the license can be found in the file
 #ifndef MIMALLOC_TYPES_H
 #define MIMALLOC_TYPES_H
 
+#define OUTPUT_TARGET_WASM
+
 // --------------------------------------------------------------------------
 // This file contains the main type definitions for mimalloc:
 // mi_heap_t      : all data for a thread-local heap, contains
@@ -64,7 +66,7 @@ terms of the MIT license. A copy of the license can be found in the file
 // #define MI_DEBUG 3  // + extensive internal invariant checking (cmake -DMI_DEBUG_FULL=ON)
 #if !defined(MI_DEBUG)
 #if !defined(NDEBUG) || defined(_DEBUG)
-#define MI_DEBUG 2
+#define MI_DEBUG 4
 #else
 #define MI_DEBUG 0
 #endif
@@ -170,6 +172,11 @@ typedef int32_t  mi_ssize_t;
 
 
 // Derived constants
+// #if defined(OUTPUT_TARGET_WASM)
+//   #define MI_SEGMENT_SIZE                   (4*MI_MiB)
+// #else
+//   #define MI_SEGMENT_SIZE                   (MI_ZU(1)<<MI_SEGMENT_SHIFT)
+// #endif
 #define MI_SEGMENT_SIZE                   (MI_ZU(1)<<MI_SEGMENT_SHIFT)
 #define MI_SEGMENT_ALIGN                  MI_SEGMENT_SIZE
 #define MI_SEGMENT_MASK                   ((uintptr_t)(MI_SEGMENT_ALIGN - 1))

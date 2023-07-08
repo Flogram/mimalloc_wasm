@@ -1,5 +1,5 @@
 CC := emcc
-CFLAGS := -Wall -Wextra -Iinclude -O3 --no-entry -Wno-deprecated-declarations -Wno-deprecated-pragma -Wunused-command-line-argument -s EXPORTED_FUNCTIONS='["_mi_malloc","_malloc","free"]' -s EXTRA_EXPORTED_RUNTIME_METHODS='["ccall","cwrap"]'
+CFLAGS := -Wall -Wextra -Iinclude -O3 --no-entry -Wno-deprecated-declarations -Wno-deprecated-pragma -Wunused-command-line-argument -s EXPORTED_FUNCTIONS='["_mi_malloc","_malloc","free"]' -s EXTRA_EXPORTED_RUNTIME_METHODS='["ccall","cwrap"]' -s TOTAL_MEMORY=67108864 -s ALLOW_MEMORY_GROWTH=1 #-s DEMANGLE_SUPPORT=1 -g 
 OUT_DIR := build
 
 SRCS := src/alloc.c \
@@ -17,6 +17,7 @@ SRCS := src/alloc.c \
 	src/segment-map.c \
 	src/stats.c \
 	src/prim/wasi/prim.c
+#	src/prim/window/prim.c
 
 OBJS := $(patsubst src/%.c, $(OUT_DIR)/src/%.o, $(SRCS))
 TARGET := mimalloc_wasm

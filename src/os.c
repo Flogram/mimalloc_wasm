@@ -9,6 +9,7 @@ terms of the MIT license. A copy of the license can be found in the file
 #include "mimalloc/atomic.h"
 #include "mimalloc/prim.h"
 #include "os.h"
+#include <emscripten.h>
 
 /* -----------------------------------------------------------
   Initialization.
@@ -189,6 +190,12 @@ void  _mi_os_free(void* p, size_t size, mi_memid_t memid, mi_stats_t* tld_stats)
 
 // Note: the `try_alignment` is just a hint and the returned pointer is not guaranteed to be aligned.
 static void* mi_os_prim_alloc(size_t size, size_t try_alignment, bool commit, bool allow_large, bool* is_large, bool* is_zero, mi_stats_t* stats) {
+    EM_ASM({
+    console.log("mi_os_prim_alloc called.");
+    console.log("  size: ", $0);
+    console.log("  try_alignment: ", $1);
+  }, size, try_alignment);
+
   mi_assert_internal(size > 0 && (size % _mi_os_page_size()) == 0);
   mi_assert_internal(is_zero != NULL);
   mi_assert_internal(is_large != NULL);
@@ -221,6 +228,12 @@ static void* mi_os_prim_alloc(size_t size, size_t try_alignment, bool commit, bo
 // Primitive aligned allocation from the OS.
 // This function guarantees the allocated memory is aligned.
 static void* mi_os_prim_alloc_aligned(size_t size, size_t alignment, bool commit, bool allow_large, bool* is_large, bool* is_zero, void** base, mi_stats_t* stats) {
+  EM_ASM({
+    console.log("mi_os_prim_alloc_aligned called.");
+    console.log("  size: ", $0);
+    console.log("  alignment: ", $1);
+  }, size, alignment);
+
   mi_assert_internal(alignment >= _mi_os_page_size() && ((alignment & (alignment - 1)) == 0));
   mi_assert_internal(size > 0 && (size % _mi_os_page_size()) == 0);
   mi_assert_internal(is_large != NULL);
@@ -230,6 +243,9 @@ static void* mi_os_prim_alloc_aligned(size_t size, size_t alignment, bool commit
   if (!(alignment >= _mi_os_page_size() && ((alignment & (alignment - 1)) == 0))) return NULL;
   size = _mi_align_up(size, _mi_os_page_size());
 
+  EM_ASM({
+    console.log("mi_os_prim_alloc_aligned called mi_os_prim_alloc 1. alignment: ", $0);
+  }, alignment);
   // try first with a hint (this will be aligned directly on Win 10+ or BSD)
   void* p = mi_os_prim_alloc(size, alignment, commit, allow_large, is_large, is_zero, stats);
   if (p == NULL) return NULL;
@@ -246,6 +262,9 @@ static void* mi_os_prim_alloc_aligned(size_t size, size_t alignment, bool commit
     const size_t over_size = size + alignment;
 
     if (mi_os_mem_config.must_free_whole) {  // win32 virtualAlloc cannot free parts of an allocate block
+      EM_ASM({
+        console.log("mi_os_prim_alloc_aligned called mi_os_prim_alloc 2. alignment: 1");
+      });
       // over-allocate uncommitted (virtual) memory
       p = mi_os_prim_alloc(over_size, 1 /*alignment*/, false /* commit? */, false /* allow_large */, is_large, is_zero, stats);
       if (p == NULL) return NULL;
@@ -263,6 +282,9 @@ static void* mi_os_prim_alloc_aligned(size_t size, size_t alignment, bool commit
     }
     else  { // mmap can free inside an allocation
       // overallocate...
+      EM_ASM({
+        console.log("mi_os_prim_alloc_aligned called mi_os_prim_alloc 3. alignment: 1");
+      });
       p = mi_os_prim_alloc(over_size, 1, commit, false, is_large, is_zero, stats);
       if (p == NULL) return NULL;
       
@@ -290,6 +312,10 @@ static void* mi_os_prim_alloc_aligned(size_t size, size_t alignment, bool commit
 ----------------------------------------------------------- */
 
 void* _mi_os_alloc(size_t size, mi_memid_t* memid, mi_stats_t* tld_stats) {
+  EM_ASM_({
+        console.log("_mi_os_alloc size:", $0);
+  }, size);
+
   MI_UNUSED(tld_stats);
   *memid = _mi_memid_none();
   mi_stats_t* stats = &_mi_stats_main;
@@ -297,6 +323,11 @@ void* _mi_os_alloc(size_t size, mi_memid_t* memid, mi_stats_t* tld_stats) {
   size = _mi_os_good_alloc_size(size);
   bool os_is_large = false;
   bool os_is_zero  = false;
+
+  EM_ASM({
+    console.log("_mi_os_alloc called mi_os_prim_alloc 1. alignment: 0");
+  });
+
   void* p = mi_os_prim_alloc(size, 0, true, false, &os_is_large, &os_is_zero, stats);
   if (p != NULL) {
     *memid = _mi_memid_create_os(true, os_is_zero, os_is_large);
@@ -306,6 +337,12 @@ void* _mi_os_alloc(size_t size, mi_memid_t* memid, mi_stats_t* tld_stats) {
 
 void* _mi_os_alloc_aligned(size_t size, size_t alignment, bool commit, bool allow_large, mi_memid_t* memid, mi_stats_t* tld_stats)
 {
+  EM_ASM({
+    console.log("_mi_os_prim_alloc_aligned called.");
+    console.log("  size: ", $0);
+    console.log("  alignment: ", $1);
+  }, size, alignment);
+
   MI_UNUSED(&_mi_os_get_aligned_hint); // suppress unused warnings
   MI_UNUSED(tld_stats);
   *memid = _mi_memid_none();
@@ -316,6 +353,12 @@ void* _mi_os_alloc_aligned(size_t size, size_t alignment, bool commit, bool allo
   bool os_is_large = false;
   bool os_is_zero  = false;
   void* os_base = NULL;
+  
+  EM_ASM({
+    console.log("mi_os_prim_alloc calling mi_os_prim_alloc_aligned.");
+    console.log("  size: ", $0);
+    console.log("  alignment: ", $1);
+  }, size, alignment);
   void* p = mi_os_prim_alloc_aligned(size, alignment, commit, allow_large, &os_is_large, &os_is_zero, &os_base, &_mi_stats_main /*tld->stats*/ );
   if (p != NULL) {
     *memid = _mi_memid_create_os(commit, os_is_zero, os_is_large);
@@ -341,12 +384,22 @@ void* _mi_os_alloc_aligned_at_offset(size_t size, size_t alignment, size_t offse
   if (offset > MI_SEGMENT_SIZE) return NULL;
   if (offset == 0) {
     // regular aligned allocation
+    EM_ASM({
+      console.log("_mi_arena_alloc_aligned_at_offset called _mi_os_alloc_aligned 1");
+      console.log("  size: ", $0);
+      console.log("  alignment: ", $1);
+    }, size, alignment);
     return _mi_os_alloc_aligned(size, alignment, commit, allow_large, memid, tld_stats);
   }
   else {
     // overallocate to align at an offset
     const size_t extra = _mi_align_up(offset, alignment) - offset;
     const size_t oversize = size + extra;
+    EM_ASM({
+      console.log("_mi_arena_alloc_aligned_at_offset called _mi_os_alloc_aligned 2");
+      console.log("  size: ", $0);
+      console.log("  alignment: ", $1);
+    }, size, alignment);
     void* const start = _mi_os_alloc_aligned(oversize, alignment, commit, allow_large, memid, tld_stats);
     if (start == NULL) return NULL;
 
